@@ -121,9 +121,18 @@ const ICONS = {
 };
 const icon = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ICONS.dot}</svg>`;
 
-const chips = (list, block) =>
+// 写真は Wikimedia Commons の、再利用が認められているものだけを使います（出典・作者・ライセンス・加工を表示）
+const PHOTOS = {
+  model3: { file: 'model3.jpg', caption: 'Model 3（2018年撮影・海外参考写真。日本仕様やHWを示すものではありません）', author: 'Darin Caggiano', source: 'https://commons.wikimedia.org/wiki/File:Tesla_Model_3.jpg', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
+  modely: { file: 'modely.jpg', caption: 'Model Y（2022年・英国撮影。日本仕様やHWを示すものではありません）', author: 'Vauxford', source: 'https://commons.wikimedia.org/wiki/File:2022_Tesla_Model_Y_Long_Range_AWD_Front.jpg', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
+};
+const photoOf = (post) => PHOTOS[post.photo] || (Number(post.date.slice(8)) % 2 === 0 ? PHOTOS.model3 : PHOTOS.modely);
+const photoCaption = (ph) => `${esc(ph.caption)}<br><a href="${ph.source}" target="_blank" rel="noopener">${esc(ph.author)} / Wikimedia Commons</a> · <a href="${ph.licenseUrl}" target="_blank" rel="noopener">${ph.license}</a> · 縮小版。表示枠に合わせたトリミングあり。`;
+const photoCredit = (ph) => `<p class="card-credit"><a href="${ph.source}" target="_blank" rel="noopener">写真：${esc(ph.author)}</a> / <a href="${ph.licenseUrl}" target="_blank" rel="noopener">${ph.license}</a>（縮小・表示枠でトリミング）</p>`;
+
+const chips = (list, inlineMode) =>
   !list?.length ? '' :
-  `<span class="chips${block ? ' block' : ''}">${list.map((s) => (s.url ? `<a class="chip" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a>` : `<span class="chip">${esc(s.name)}</span>`)).join('')}</span>`;
+  `<${inlineMode ? 'span' : 'div'} class="tags${inlineMode ? ' inline' : ''}">${list.map((s) => (s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)} ↗</a>` : `<span>${esc(s.name)}</span>`)).join('')}</${inlineMode ? 'span' : 'div'}>`;
 const tone = (t) => (t ? ` tone-${t}` : '');
 
 function adUnit(pos) {
@@ -138,36 +147,37 @@ function adUnit(pos) {
 function affiliateBox() {
   const items = (cfg.affiliate?.items || []).filter((x) => isUrl(x.url) && x.title);
   if (!items.length) return '';
-  return `<aside class="pr"><p class="prhead"><span class="prtag">PR</span>おすすめ</p>${items.map((x) => `<a class="pritem" href="${esc(x.url)}" target="_blank" rel="sponsored noopener"><b>${esc(x.title)}</b><span>${esc(x.note || '')}</span></a>`).join('')}</aside>`;
+  return `<aside class="pr"><p class="prhead"><span class="prtag">PR</span>おすすめ</p>${items.map((x) => `<a class="pritem" href="${esc(x.url)}" target="_blank" rel="sponsored noopener"><b>${esc(x.title)} ↗</b><span>${esc(x.note || '')}</span></a>`).join('')}</aside>`;
 }
 
 function block(b) {
   switch (b.type) {
     case 'h2': return `<h2>${inline(b.text)}</h2>`;
     case 'h3': return `<h3>${inline(b.text)}</h3>`;
-    case 'meta': return `<p class="meta">${inline(b.text)}</p>`;
-    case 'p': return `<p>${inline(b.text)}${chips(b.sources)}</p>`;
-    case 'note': return `<p class="note" style="margin-bottom:16px">${inline(b.text)}${chips(b.sources)}</p>`;
+    case 'meta': return `<p class="kicker">${inline(b.text)}</p>`;
+    case 'p': return `<p>${inline(b.text)}${chips(b.sources, true)}</p>`;
+    case 'note': return `<p class="note" style="margin-bottom:20px">${inline(b.text)}${chips(b.sources, true)}</p>`;
     case 'list': return `<ul class="list">${b.items.map((i) => `<li>${inline(i)}</li>`).join('')}</ul>`;
-    case 'source': return `<p class="src">出典：${b.url ? `<a href="${esc(b.url)}" target="_blank" rel="noopener">${esc(b.text)}</a>` : esc(b.text)}</p>`;
+    case 'source': return `<p class="src">出典：${b.url ? `<a href="${esc(b.url)}" target="_blank" rel="noopener">${esc(b.text)} ↗</a>` : esc(b.text)}</p>`;
     case 'hr': return '<hr>';
     case 'tiles':
-      return `${b.title ? `<h2>${inline(b.title)}</h2>` : ''}<div class="tiles">${b.items.map((t) => `<div class="tile"><div class="label">${inline(t.label)}</div><div class="value${tone(t.tone)}">${inline(t.value)}</div>${t.note ? `<div class="sub">${inline(t.note)}</div>` : ''}</div>`).join('')}</div>${chips(b.sources, true)}`;
+      return `${b.title ? `<h2>${inline(b.title)}</h2>` : ''}<div class="tiles">${b.items.map((t) => `<div class="tile"><div class="label">${inline(t.label)}</div><div class="value${tone(t.tone)}">${inline(t.value)}</div>${t.note ? `<div class="sub">${inline(t.note)}</div>` : ''}</div>`).join('')}</div>${chips(b.sources)}`;
     case 'features':
-      return `<section class="panel">${b.title ? `<p class="ptitle">${inline(b.title)}</p>` : ''}${b.items.map((f, i) => `<div class="feat${i === 0 && f.value ? ' accent' : ''}">${icon(f.icon)}<div><div class="ft">${inline(f.title)}</div>${f.value ? `<div class="fv">${inline(f.value)}</div>` : ''}${f.note ? `<div class="fn">${inline(f.note)}</div>` : ''}</div></div>`).join('')}</section>${b.sources ? `<p class="src">出典：${b.sources.map((s) => (s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a>` : esc(s.name))).join('、')}</p>` : ''}`;
+      return `<section class="panel">${b.title ? `<p class="ptitle">${inline(b.title)}</p>` : ''}${b.items.map((f, i) => `<div class="feat${i === 0 && f.value ? ' accent' : ''}">${icon(f.icon)}<div><div class="ft">${inline(f.title)}</div>${f.value ? `<div class="fv">${inline(f.value)}</div>` : ''}${f.note ? `<div class="fn">${inline(f.note)}</div>` : ''}</div></div>`).join('')}</section>${b.sources ? `<p class="src">出典：${b.sources.map((s) => (s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)} ↗</a>` : esc(s.name))).join('、')}</p>` : ''}`;
     case 'share':
       return `<section class="panel"><p class="plabel">${inline(b.label)}</p><p class="big">${inline(b.value)}</p><div class="bar" role="img" aria-label="${esc(b.parts.map((p) => `${p.label} ${p.pct}%`).join('、'))}">${b.parts.map((p) => `<span class="c-${esc(p.tone || 'other')}" style="width:${Number(p.pct)}%"></span>`).join('')}</div><div class="legend">${b.parts.map((p) => `<span><i class="c-${esc(p.tone || 'other')}"></i>${inline(p.label)}${p.value ? `：${inline(p.value)}` : ''}</span>`).join('')}</div><p class="note">${inline(b.note)}</p></section>`;
     case 'meter':
-      return `<section class="plain-stat"><p class="plabel" style="font-size:14px;color:var(--sub);margin:0">${inline(b.label)}</p><p class="big">${inline(b.value)}</p><div class="meter" role="img" aria-label="${esc(b.value)}"><span style="width:${b.pct}%"></span></div><p class="note">${inline(b.note)}</p></section>`;
+      return `<section class="panel"><p class="plabel">${inline(b.label)}</p><p class="big">${inline(b.value)}</p><div class="meter" role="img" aria-label="${esc(b.value)}"><span style="width:${b.pct}%"></span></div><p class="note">${inline(b.note)}</p></section>`;
     case 'table':
-      return `${b.title ? `<h3>${inline(b.title)}</h3>` : ''}<div class="tablewrap"><table><thead><tr>${b.head.map((h) => `<th>${inline(h)}</th>`).join('')}</tr></thead><tbody>${b.rows.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>${b.note ? `<p class="note">${inline(b.note)}${chips(b.sources)}</p>` : ''}</div>`;
+      return `${b.title ? `<h3>${inline(b.title)}</h3>` : ''}<div class="table-wrap"><table class="cols-${b.head.length}"><thead><tr>${b.head.map((h) => `<th scope="col">${inline(h)}</th>`).join('')}</tr></thead><tbody>${b.rows.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${b.note ? `<p class="note table-note">${inline(b.note)}${chips(b.sources, true)}</p>` : ''}`;
     case 'kv':
-      return `<section class="panel"><p class="kv-head">${inline(b.title)}</p>${b.sub ? `<p class="kv-sub">${inline(b.sub)}</p>` : '<p class="kv-sub"></p>'}<div class="kv">${b.rows.map((r) => `<div class="row"><span>${inline(r.k)}</span><span class="v${tone(r.tone)}">${inline(r.v)}</span></div>`).join('')}</div></section>`;
+      return `<section class="panel"><span class="kicker">STATUS</span><p class="kv-head">${inline(b.title)}</p><p class="kv-sub">${b.sub ? inline(b.sub) : ''}</p><div class="kv">${b.rows.map((r) => `<div class="row"><span>${inline(r.k)}</span><span class="v${tone(r.tone)}">${inline(r.v)}</span></div>`).join('')}</div></section>`;
   }
   return '';
 }
 
 // ---------- ページの外枠 ----------
+let LATEST = null;
 function layout({ title, description, pathName, body, type = 'website', jsonld, image }) {
   const a = cfg.adsense || {};
   const full = title === cfg.title ? `${cfg.title}｜${cfg.tagline}` : `${title}｜${cfg.title}`;
@@ -184,9 +194,9 @@ function layout({ title, description, pathName, body, type = 'website', jsonld, 
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${esc(abs(pathName))}">
-<meta property="og:image" content="${esc(abs(image || '/og.svg'))}">
+<meta property="og:image" content="${esc(abs(image || '/photos/model3.jpg'))}">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#f7f6f2">
 <link rel="alternate" type="application/rss+xml" title="${esc(cfg.title)}" href="${url('/feed.xml')}">
 <link rel="icon" href="${url('/favicon.svg')}" type="image/svg+xml">
 <link rel="stylesheet" href="${url('/style.css')}">
@@ -195,23 +205,30 @@ ${cfg.analytics?.ga4 ? `<script async src="https://www.googletagmanager.com/gtag
 ${jsonld ? `<script type="application/ld+json">${JSON.stringify(jsonld).replace(/</g, '\\u003c')}</script>` : ''}
 </head>
 <body>
-<header class="site-head"><div class="wrap"><a class="brand" href="${url('/')}">${esc(cfg.title)}</a><nav class="nav"><a href="${url('/archive/')}">記事一覧</a><a href="${url('/about/')}">サイト情報</a></nav></div></header>
-<main><div class="wrap">
+<div class="topline"><span>TESLA FSD · WORLD NEWS</span><span>HW3 / HW4 · JAPAN</span></div>
+<header class="site"><a class="brand" href="${url('/')}">TESLA<span>FSD WORLD NEWS<span class="brand-dot">●</span></span></a><nav class="main" aria-label="メイン">${LATEST ? `<a href="${url(`/posts/${LATEST.date}/`)}">最新号</a>` : ''}<a href="${url('/archive/')}">記事一覧</a><a href="${url('/about/')}">運営方針</a><a class="rss" href="${url('/feed.xml')}">RSS ↗</a></nav></header>
+<main id="main">
 ${body}
-</div></main>
-<footer class="site-foot"><div class="wrap">
-<nav><a href="${url('/about/')}">このサイトについて</a><a href="${url('/privacy/')}">プライバシーポリシー・免責事項</a>${isUrl(cfg.contactUrl) ? `<a href="${esc(cfg.contactUrl)}" target="_blank" rel="noopener">お問い合わせ</a>` : ''}<a href="${url('/feed.xml')}">RSS</a></nav>
-<p>当サイトは Tesla, Inc. とは関係のない非公式の情報サイトです。Tesla、FSD、Model 3 などの名称は各社の商標です。</p>
-<p>FSD（Supervised）は運転支援機能です。運転者は常に前方と周囲を監視し、すぐに操作できる状態を保つ必要があります。</p>
-<p>© ${new Date().getFullYear()} ${esc(cfg.title)}</p>
-</div></footer>
+</main>
+<footer class="site"><strong>${esc(cfg.title)}</strong><p>日本のオーナーへ、事実と、その先を。Tesla, Inc. とは関係のない独立サイトです。</p><p><a href="${url('/about/')}">運営方針</a><a href="${url('/privacy/')}">プライバシーポリシー・免責事項</a>${isUrl(cfg.contactUrl) ? `<a href="${esc(cfg.contactUrl)}" target="_blank" rel="noopener">お問い合わせ</a>` : ''}<a href="${url('/feed.xml')}">RSS</a></p><small>事実・報道・独自分析を区別して掲載します。情報は各確認日時点のものです。FSD（Supervised）は運転支援機能で、運転者による常時の監視が必要です。Tesla、FSD、Model 3 などの名称は各社の商標です。© ${new Date().getFullYear()} ${esc(cfg.title)}</small></footer>
 </body>
 </html>
 `;
 }
 
+function linkedSources(post) {
+  const seen = new Map();
+  const add = (name, u) => { if (isUrl(u) && !seen.has(u)) seen.set(u, name); };
+  for (const b of post.blocks) {
+    (b.sources || []).forEach((s) => add(s.name, s.url));
+    if (b.type === 'source') add(b.text, b.url);
+  }
+  return [...seen].map(([u, name]) => ({ url: u, name }));
+}
+
 function postPage(post, prev, next) {
   const p = `/posts/${post.date}/`;
+  const ph = photoOf(post);
   // 広告の位置：最初の数字カードの後・本文の中ほどの見出しの前・記事の最後
   const out = [];
   const h2s = post.blocks.map((b, i) => (b.type === 'h2' ? i : -1)).filter((i) => i >= 0);
@@ -222,51 +239,69 @@ function postPage(post, prev, next) {
     out.push(block(b));
     if (i === firstTiles) out.push(adUnit('top'));
   });
-  const body = `<article>
-<p class="eyebrow">${esc(cfg.title.replace('TESLA FSD WORLD NEWS', 'TESLA FSD・WORLD NEWS'))}｜${dotDate(post.date)}</p>
-<h1 class="title">${inline(post.title)}</h1>
-<p class="dateline">${jpDate(post.date)}${post.edition ? esc(post.edition) : ''}${post.updated ? `｜日本時間${esc(post.updated)}更新` : ''}</p>
+  const srcs = linkedSources(post);
+  const body = `<div class="article-top"><a href="${url('/archive/')}">← 記事一覧</a><span>${esc(post.edition || '朝刊')} / ${post.date}</span></div>
+<article class="reading">
+<div class="eyebrow">TESLA FSD · WORLD NEWS · ${dotDate(post.date)}</div>
+<h1>${inline(post.title)}</h1>
+<p class="standfirst">${esc(post.description)}</p>
+<p class="article-meta">${jpDate(post.date)}${post.edition ? esc(post.edition) : ''}${post.updated ? `｜日本時間${esc(post.updated)}更新` : ''}｜AIを活用して作成。出典は記事の末尾に掲載しています。</p>
+<figure class="article-photo"><img src="${url(`/photos/${ph.file}`)}" alt="${esc(ph.caption)}" width="1600" height="900"><figcaption>${photoCaption(ph)}</figcaption></figure>
 ${post.lead.map((t) => `<p>${inline(t)}</p>`).join('\n')}
 ${firstTiles < 0 ? adUnit('top') : ''}
 ${out.join('\n')}
-<p class="conclusion">今日の結論：${inline(post.conclusion)}</p>
-</article>
+<div class="notice"><span class="kicker">今日の結論</span>${inline(post.conclusion)}</div>
+${srcs.length ? `<div class="sources"><h2>出典</h2><ul>${srcs.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)} ↗</a></li>`).join('')}</ul><p>リンクのない出典は、本文中に媒体名を記載しています。事実・報道・独自分析は見出しの下の表示で区別しています。</p></div>` : ''}
 ${affiliateBox()}
 ${adUnit('bottom')}
 <nav class="pager${prev ? '' : ' single'}" aria-label="前後の記事">
-${prev ? `<a href="${url(`/posts/${prev.date}/`)}"><small>前の記事｜${dotDate(prev.date)}</small><b>${esc(plain(prev.title))}</b></a>` : ''}
-${next ? `<a class="next" href="${url(`/posts/${next.date}/`)}"><small>次の記事｜${dotDate(next.date)}</small><b>${esc(plain(next.title))}</b></a>` : `<a class="next" href="${url('/archive/')}"><small>すべての記事</small><b>記事一覧を見る</b></a>`}
-</nav>`;
+${prev ? `<a href="${url(`/posts/${prev.date}/`)}"><small>← 前の記事 / ${prev.date}</small><b>${esc(plain(prev.title))}</b></a>` : ''}
+${next ? `<a class="next" href="${url(`/posts/${next.date}/`)}"><small>次の記事 / ${next.date} →</small><b>${esc(plain(next.title))}</b></a>` : `<a class="next" href="${url('/archive/')}"><small>ALL ARTICLES</small><b>記事一覧を見る ↗</b></a>`}
+</nav>
+</article>`;
   return layout({
-    title: plain(post.title), description: post.description, pathName: p, body, type: 'article',
+    title: plain(post.title), description: post.description, pathName: p, body, type: 'article', image: `/photos/${ph.file}`,
     jsonld: {
       '@context': 'https://schema.org', '@type': 'NewsArticle', headline: plain(post.title).slice(0, 110),
       description: post.description, datePublished: `${post.date}T${(post.updated || '09:00').padStart(5, '0')}:00+09:00`,
       dateModified: `${post.date}T${(post.updated || '09:00').padStart(5, '0')}:00+09:00`,
       author: { '@type': 'Organization', name: cfg.author }, publisher: { '@type': 'Organization', name: cfg.title },
-      mainEntityOfPage: abs(p), inLanguage: 'ja',
+      image: abs(`/photos/${ph.file}`), mainEntityOfPage: abs(p), inLanguage: 'ja',
     },
   });
 }
 
-const card = (p, lead) => `<a class="card${lead ? ' lead' : ''}" href="${url(`/posts/${p.date}/`)}"><div class="cdate">${jpDate(p.date)}${p.edition ? esc(p.edition) : ''}</div><div class="ctitle">${esc(plain(p.title))}</div><div class="cdesc">${esc(p.description)}</div></a>`;
+const card = (p, wide) => {
+  const ph = photoOf(p);
+  const href = url(`/posts/${p.date}/`);
+  const tags = Array.isArray(p.tags) && p.tags.length ? p.tags : ['FSD', 'HW3', 'HW4'];
+  if (wide === true) return `<article class="card wide"><a href="${href}" tabindex="-1" aria-hidden="true"><img src="${url(`/photos/${ph.file}`)}" alt="" loading="lazy" width="640" height="400"></a><div class="card-body"><div class="eyebrow">${esc(p.edition || '朝刊')}<span>${p.date}</span></div><h3><a href="${href}">${esc(plain(p.title))}</a></h3><p>${esc(p.description)}</p><div class="tags">${tags.slice(0, 4).map((t) => `<span>${esc(t)}</span>`).join('')}</div>${photoCredit(ph)}</div></article>`;
+  return `<article class="card"><a href="${href}" tabindex="-1" aria-hidden="true"><img src="${url(`/photos/${ph.file}`)}" alt="" loading="lazy" width="640" height="400"></a>${photoCredit(ph)}<div class="card-body"><div class="eyebrow">${esc(p.edition || '朝刊')}<span>${p.date}</span></div><h3><a href="${href}">${esc(plain(p.title))}</a></h3><p>${esc(p.description)}</p><div class="tags">${tags.slice(0, 4).map((t) => `<span>${esc(t)}</span>`).join('')}</div></div></article>`;
+};
 
 function indexPage(posts) {
-  const latest = posts.slice(0, 10);
-  const body = `<section class="hero"><h1>${esc(cfg.title)}</h1><p>${esc(cfg.tagline)}</p></section>
-<div class="cards">${latest.map((p, i) => card(p, i === 0) + (i === 0 ? adUnit('list') : '')).join('\n')}</div>
-${posts.length > latest.length ? `<p style="margin-top:20px"><a href="${url('/archive/')}">すべての記事を見る</a></p>` : ''}`;
+  const latest = posts[0];
+  const ph = PHOTOS.model3;
+  const tiles = latest.blocks.find((b) => b.type === 'tiles');
+  const world = latest.blocks.find((b) => b.type === 'table' && b.head[0] === '地域' && b.head.length === 3);
+  const deltaClass = (d) => (/進展|前進|解禁|開始|承認/.test(d) ? 'up' : /悪化|後退|遅延|停止|却下/.test(d) ? 'down' : '');
+  const body = `<section class="hero"><div class="hero-copy"><div class="eyebrow">FOR JAPAN'S TESLA OWNERS</div><h1>Tesla FSD・<br>世界の<br><em>最新ニュース</em></h1><p>各国の認証、HW3・HW4、日本での提供見通し。<br>出典と確認日を添えて、毎朝まとめます。</p><a class="button" href="${url(`/posts/${latest.date}/`)}">今日の記事を読む <span>↗</span></a><div class="hero-meta">独立系ニュース / 出典付き / 毎朝更新</div></div><figure class="hero-photo"><img src="${url(`/photos/${ph.file}`)}" alt="${esc(ph.caption)}" fetchpriority="high" width="1600" height="900"><figcaption>${photoCaption(ph)}</figcaption></figure></section>
+<div class="status-strip"><span class="pulse"></span><strong>LATEST</strong><span>最終更新 ${jpDate(latest.date)}${latest.updated ? ` ${esc(latest.updated)}` : ''}</span><span class="status-count">${posts.length} 本の記事</span><a href="${url('/archive/')}">記事一覧を見る ↗</a></div>
+${tiles ? `<section style="margin-bottom:0"><div class="brief">${tiles.items.slice(0, 4).map((t, i) => `<div><span class="kicker">${String(i + 1).padStart(2, '0')} / ${inline(t.label)}</span><h2${t.tone ? ` class="tone-${t.tone}"` : ''}>${inline(t.value)}</h2><p>${inline(t.note || '')}</p></div>`).join('')}</div><p class="brief-more"><a href="${url(`/posts/${latest.date}/`)}">${esc(plain(latest.title))} ↗</a></p></section>` : ''}
+${adUnit('list')}
+<section id="latest"><div class="section-head"><div><span class="kicker">THE JOURNAL</span><h2>最新の記事</h2></div><span>${posts.length} ARTICLES</span></div><div class="cards${posts.length < 3 ? ' few' : ''}">${posts.slice(0, 9).map((p) => card(p, posts.length < 3)).join('')}</div>${posts.length > 9 ? `<p class="archive-link"><a href="${url('/archive/')}">過去の記事をすべて読む ↗</a></p>` : ''}</section>
+${world ? `<section class="guide-band"><div><span class="kicker">WORLD STATUS</span><h2>世界のFSDは、<br>いま、どこまで。</h2><p>${jpDate(latest.date)}時点の各国の状況です。<br>契約できることと、実際に使えることは区別しています。</p><a class="more" href="${url(`/posts/${latest.date}/`)}">根拠と出典を記事で読む ↗</a></div><div class="guide-links">${world.rows.map((r) => `<div><span>${inline(r[0])}</span><span class="st">${inline(r[1])}<b class="${deltaClass(r[2])}">${inline(r[2])}</b></span></div>`).join('')}</div></section>` : ''}`;
   return layout({ title: cfg.title, description: cfg.description, pathName: '/', body, jsonld: { '@context': 'https://schema.org', '@type': 'WebSite', name: cfg.title, url: abs('/'), inLanguage: 'ja' } });
 }
 function archivePage(posts) {
   const byMonth = new Map();
   for (const p of posts) { const k = p.date.slice(0, 7); byMonth.set(k, [...(byMonth.get(k) || []), p]); }
-  const body = `<div class="page"><h1>記事一覧</h1>${[...byMonth].map(([k, list]) => `<h2>${Number(k.slice(0, 4))}年${Number(k.slice(5))}月</h2><div class="cards">${list.map((p) => card(p)).join('')}</div>`).join('')}</div>`;
+  const body = `<div class="article-top"><a href="${url('/')}">← トップ</a><span>${posts.length} ARTICLES</span></div><section><div class="section-head"><div><span class="kicker">ARCHIVE</span><h2>記事一覧</h2></div></div>${[...byMonth].map(([k, list]) => `<h3 class="month">${Number(k.slice(0, 4))}年${Number(k.slice(5))}月</h3><div class="cards${posts.length < 3 ? ' few' : ''}">${list.map((p) => card(p, posts.length < 3)).join('')}</div>`).join('')}</section>`;
   return layout({ title: '記事一覧', description: `${cfg.title} の記事一覧です。`, pathName: '/archive/', body });
 }
 function staticPage(file, title, pathName) {
   const html = fs.readFileSync(path.join(ROOT, 'src', file), 'utf8').replaceAll('{{title}}', esc(cfg.title));
-  return layout({ title, description: `${cfg.title} の「${title}」のページです。`, pathName, body: `<div class="page">${html}</div>` });
+  return layout({ title, description: `${cfg.title} の「${title}」のページです。`, pathName, body: `<div class="article-top"><a href="${url('/')}">← トップ</a><span>${esc(title)}</span></div><article class="reading page-plain"><div class="eyebrow">ABOUT THIS SITE</div>${html}</article>` });
 }
 
 // ---------- 実行 ----------
@@ -284,13 +319,14 @@ for (const f of files) {
 }
 if (bad) { console.error(`\n${bad} 件の記事に問題があります。公開を中止しました。`); process.exit(1); }
 if (!posts.length) { console.error('記事が1件もありません。'); process.exit(1); }
+LATEST = posts[0];
 if (args.has('--check')) { console.log(`✓ ${posts.length} 件の記事の形式は正しいです。`); process.exit(0); }
 
 fs.rmSync(DIST, { recursive: true, force: true });
 const write = (rel, content) => { const f = path.join(DIST, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, content); };
 write('style.css', fs.readFileSync(path.join(ROOT, 'src', 'style.css'), 'utf8'));
-write('favicon.svg', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#000"/><text x="32" y="41" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-weight="700" font-size="22" fill="#fff">FSD</text></svg>');
-write('og.svg', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="#000"/><text x="80" y="300" font-family="Helvetica,Arial,sans-serif" font-weight="700" font-size="76" fill="#fff">TESLA FSD</text><text x="80" y="390" font-family="Helvetica,Arial,sans-serif" font-weight="700" font-size="76" fill="#fff">WORLD NEWS</text><rect x="80" y="430" width="220" height="10" rx="5" fill="#53b559"/></svg>`);
+write('favicon.svg', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="10" fill="#202523"/><text x="30" y="41" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-weight="800" font-size="21" fill="#f7f6f2">FSD</text><circle cx="54" cy="38" r="3.5" fill="#c63b32"/></svg>');
+for (const f of fs.readdirSync(path.join(ROOT, 'src', 'photos'))) { fs.mkdirSync(path.join(DIST, 'photos'), { recursive: true }); fs.copyFileSync(path.join(ROOT, 'src', 'photos', f), path.join(DIST, 'photos', f)); }
 write('.nojekyll', '');
 write('robots.txt', `User-agent: *\nAllow: /\nSitemap: ${abs('/sitemap.xml')}\n`);
 if (cfg.adsense?.client) write('ads.txt', `google.com, ${cfg.adsense.client.replace(/^ca-/, '')}, DIRECT, f08c47fec0942fa0\n`);
@@ -298,7 +334,7 @@ write('index.html', indexPage(posts));
 write('archive/index.html', archivePage(posts));
 write('about/index.html', staticPage('about.html', 'このサイトについて', '/about/'));
 write('privacy/index.html', staticPage('privacy.html', 'プライバシーポリシー・免責事項', '/privacy/'));
-write('404.html', layout({ title: 'ページが見つかりません', description: cfg.description, pathName: '/404.html', body: `<div class="page"><h1>ページが見つかりません</h1><p><a href="${url('/')}">最新の記事へ戻る</a></p></div>` }));
+write('404.html', layout({ title: 'ページが見つかりません', description: cfg.description, pathName: '/404.html', body: `<article class="reading page-plain"><div class="eyebrow">404</div><h1>ページが見つかりません</h1><p><a href="${url('/')}">最新の記事へ戻る ↗</a></p></article>` }));
 posts.forEach((p, i) => write(`posts/${p.date}/index.html`, postPage(p, posts[i + 1], posts[i - 1])));
 const pages = ['/', '/archive/', '/about/', '/privacy/', ...posts.map((p) => `/posts/${p.date}/`)];
 write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${pages.map((p) => `<url><loc>${esc(abs(p))}</loc></url>`).join('\n')}\n</urlset>\n`);
