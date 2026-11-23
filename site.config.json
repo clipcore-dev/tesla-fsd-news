@@ -1,0 +1,17 @@
+{
+  "title": "TESLA FSD WORLD NEWS",
+  "tagline": "テスラFSDの最新情報を、毎朝まとめてお届けします",
+  "description": "テスラFSD（Full Self-Driving）の世界各国の配信状況・認証・HW3/HW4の動向・日本での提供見通しを、毎朝まとめて解説します。",
+  "baseUrl": "https://clipcore-dev.github.io/tesla-fsd-news",
+  "basePath": "/tesla-fsd-news",
+  "author": "TESLA FSD WORLD NEWS 編集部",
+  "contactUrl": "",
+  "adsense": {
+    "client": "",
+    "slots": { "top": "", "middle": "", "bottom": "", "list": "" }
+  },
+  "affiliate": {
+    "items": []
+  },
+  "analytics": { "ga4": "" }
+}
