@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://tesla.clipcore.io/japan-watch/sitemap.xml

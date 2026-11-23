@@ -11,10 +11,16 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const args = new Set(process.argv.slice(2));
 const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'site.config.json'), 'utf8'));
-const BASE = args.has('--local') ? '' : (cfg.basePath || '');
-const ORIGIN = (cfg.baseUrl || '').replace(/\/$/, '');
+const SITE_URL = process.env.SITE_URL ? new URL(process.env.SITE_URL) : null;
+if (SITE_URL && (SITE_URL.protocol !== 'https:' || SITE_URL.username || SITE_URL.password || SITE_URL.search || SITE_URL.hash)) {
+  throw new Error('SITE_URL は公開サイトの HTTPS URL を指定してください。');
+}
+const ORIGIN = (SITE_URL?.href || cfg.baseUrl || '').replace(/\/$/, '');
+const BASE = args.has('--local') ? '' : (SITE_URL ? SITE_URL.pathname.replace(/\/$/, '') : cfg.basePath || '');
 const PREVIEW_ADS = args.has('--preview-ads');
 const DIST = path.join(ROOT, 'dist');
+const importedArchive = path.join(ROOT, 'src', 'japan-watch');
+const hasImportedArchive = fs.existsSync(path.join(importedArchive, 'archive.html'));
 
 // ---------- 文字の処理 ----------
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -280,6 +286,10 @@ const card = (p, wide) => {
 };
 
 function indexPage(posts) {
+  if (!posts.length) {
+    return layout({ title: cfg.title, description: cfg.description, pathName: '/',
+      body: `<section class="reading page-plain"><h1>Tesla FSD・世界ニュース</h1><p>日本と世界のFSD、運転支援の認証、HW3・HW4の動向を出典付きでお届けします。初回の記事は検証が済み次第掲載します。</p>${hasImportedArchive ? `<p><a class="button" href="${url('/archive/')}">過去の記事を読む</a></p>` : ''}</section>` });
+  }
   const latest = posts[0];
   const ph = PHOTOS.model3;
   const tiles = latest.blocks.find((b) => b.type === 'tiles');
@@ -297,7 +307,8 @@ function archivePage(posts) {
   const byMonth = new Map();
   for (const p of posts) { const k = p.date.slice(0, 7); byMonth.set(k, [...(byMonth.get(k) || []), p]); }
   const body = `<div class="article-top"><a href="${url('/')}">← トップ</a><span>${posts.length} ARTICLES</span></div><section><div class="section-head"><div><span class="kicker">ARCHIVE</span><h2>記事一覧</h2></div></div>${[...byMonth].map(([k, list]) => `<h3 class="month">${Number(k.slice(0, 4))}年${Number(k.slice(5))}月</h3><div class="cards${posts.length < 3 ? ' few' : ''}">${list.map((p) => card(p, posts.length < 3)).join('')}</div>`).join('')}</section>`;
-  return layout({ title: '記事一覧', description: `${cfg.title} の記事一覧です。`, pathName: '/archive/', body });
+  const imported = hasImportedArchive ? `<section class="reading page-plain"><h2>Tesla Japan Watchの過去記事</h2><p>日次の定点観測レポートと編集記事を、掲載時点の出典・確認状況とともに読めます。</p><p><a class="button" href="${url('/japan-watch/archive')}">過去記事をすべて見る</a></p></section>` : '';
+  return layout({ title: '記事一覧', description: `${cfg.title} の記事一覧です。`, pathName: '/archive/', body: body + imported });
 }
 function staticPage(file, title, pathName) {
   const html = fs.readFileSync(path.join(ROOT, 'src', file), 'utf8').replaceAll('{{title}}', esc(cfg.title));
@@ -305,7 +316,7 @@ function staticPage(file, title, pathName) {
 }
 
 // ---------- 実行 ----------
-const postDir = path.join(ROOT, 'posts');
+const postDir = path.resolve(ROOT, process.env.POSTS_DIR || 'posts');
 const files = fs.readdirSync(postDir).filter((f) => f.endsWith('.json')).sort().reverse();
 const posts = [];
 let bad = 0;
@@ -318,17 +329,18 @@ for (const f of files) {
   posts.push(post);
 }
 if (bad) { console.error(`\n${bad} 件の記事に問題があります。公開を中止しました。`); process.exit(1); }
-if (!posts.length) { console.error('記事が1件もありません。'); process.exit(1); }
+if (!posts.length && !args.has('--allow-empty')) { console.error('記事が1件もありません。'); process.exit(1); }
 LATEST = posts[0];
 if (args.has('--check')) { console.log(`✓ ${posts.length} 件の記事の形式は正しいです。`); process.exit(0); }
 
 fs.rmSync(DIST, { recursive: true, force: true });
+if (hasImportedArchive) fs.cpSync(importedArchive, path.join(DIST, 'japan-watch'), { recursive: true });
 const write = (rel, content) => { const f = path.join(DIST, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, content); };
 write('style.css', fs.readFileSync(path.join(ROOT, 'src', 'style.css'), 'utf8'));
 write('favicon.svg', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="10" fill="#202523"/><text x="30" y="41" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-weight="800" font-size="21" fill="#f7f6f2">FSD</text><circle cx="54" cy="38" r="3.5" fill="#c63b32"/></svg>');
 for (const f of fs.readdirSync(path.join(ROOT, 'src', 'photos'))) { fs.mkdirSync(path.join(DIST, 'photos'), { recursive: true }); fs.copyFileSync(path.join(ROOT, 'src', 'photos', f), path.join(DIST, 'photos', f)); }
 write('.nojekyll', '');
-write('robots.txt', `User-agent: *\nAllow: /\nSitemap: ${abs('/sitemap.xml')}\n`);
+write('robots.txt', `User-agent: *\nAllow: /\nSitemap: ${abs('/sitemap.xml')}\n${hasImportedArchive ? `Sitemap: ${abs('/japan-watch/sitemap.xml')}\n` : ''}`);
 if (cfg.adsense?.client) write('ads.txt', `google.com, ${cfg.adsense.client.replace(/^ca-/, '')}, DIRECT, f08c47fec0942fa0\n`);
 write('index.html', indexPage(posts));
 write('archive/index.html', archivePage(posts));
@@ -339,4 +351,4 @@ posts.forEach((p, i) => write(`posts/${p.date}/index.html`, postPage(p, posts[i 
 const pages = ['/', '/archive/', '/about/', '/privacy/', ...posts.map((p) => `/posts/${p.date}/`)];
 write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${pages.map((p) => `<url><loc>${esc(abs(p))}</loc></url>`).join('\n')}\n</urlset>\n`);
 write('feed.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel><title>${esc(cfg.title)}</title><link>${esc(abs('/'))}</link><description>${esc(cfg.description)}</description><language>ja</language>\n${posts.slice(0, 20).map((p) => `<item><title>${esc(plain(p.title))}</title><link>${esc(abs(`/posts/${p.date}/`))}</link><guid>${esc(abs(`/posts/${p.date}/`))}</guid><pubDate>${new Date(`${p.date}T${(p.updated || '09:00').padStart(5, '0')}:00+09:00`).toUTCString()}</pubDate><description>${esc(p.description)}</description></item>`).join('\n')}\n</channel></rss>\n`);
-console.log(`✓ ${posts.length} 件の記事を dist/ に書き出しました（最新: ${posts[0].date}）`);
+console.log(`✓ ${posts.length} 件の記事を dist/ に書き出しました${LATEST ? `（最新: ${LATEST.date}）` : ''}`);

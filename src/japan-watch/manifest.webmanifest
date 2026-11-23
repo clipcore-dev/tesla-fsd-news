@@ -1,0 +1,1 @@
+{"name": "Tesla Japan Watch", "short_name": "Tesla Watch", "lang": "ja", "id": "./", "start_url": "./", "scope": "./", "display": "standalone", "background_color": "#f7f6f2", "theme_color": "#c63b32", "icons": [{"src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png"}, {"src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png"}]}

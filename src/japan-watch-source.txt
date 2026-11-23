@@ -1,0 +1,7 @@
+Tesla Japan Watch / clipcore-dev
+https://github.com/clipcore-dev/tesla-japan-watch
+Snapshot af343c9, 2026-11-23
+25 daily reports and 13 editorial articles
+Articles and original diagrams: CC BY 4.0
+https://creativecommons.org/licenses/by/4.0/
+Photographs: see the credits on each page and japan-watch/data/images.json
