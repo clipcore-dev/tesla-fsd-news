@@ -139,8 +139,9 @@ const photoOf = (post) => {
 };
 const photoSrc = (photo) => photo.image || url(`/photos/${photo.file}`);
 const absolutePhoto = (photo) => photo?.image || (photo ? abs(`/photos/${photo.file}`) : null);
-const photoCaption = (ph) => `${esc(ph.caption)}<br><a href="${ph.source}" target="_blank" rel="noopener">${esc(ph.author)} / Wikimedia Commons</a> · <a href="${ph.licenseUrl}" target="_blank" rel="noopener">${ph.license}</a> · 縮小版。表示枠に合わせたトリミングあり。`;
-const photoCredit = (ph) => `<p class="card-credit"><a href="${ph.source}" target="_blank" rel="noopener">写真：${esc(ph.author)}</a> / <a href="${ph.licenseUrl}" target="_blank" rel="noopener">${ph.license}</a>（縮小・表示枠でトリミング）</p>`;
+const photoAttribution = (photo) => `<a href="${esc(photo.source)}" target="_blank" rel="noopener">${esc(photo.author)} / ${esc(photo.publisher || 'Wikimedia Commons')}</a> · <a href="${esc(photo.licenseUrl)}" target="_blank" rel="noopener">${esc(photo.license)}</a>${photo.permission && photo.permission !== photo.licenseUrl ? ` · <a href="${esc(photo.permission)}" target="_blank" rel="noopener">利用条件の出典</a>` : ''}`;
+const photoCaption = (photo) => `${esc(photo.caption)}<br>${photoAttribution(photo)} · 表示枠に合わせたトリミングあり。`;
+const photoCredit = (photo) => `<p class="card-credit">写真：${photoAttribution(photo)}（表示枠でトリミング）</p>`;
 const photoFigure = (photo, type) => photo ? `<figure class="${type}-photo"><img src="${esc(photoSrc(photo))}" alt="${esc(photo.caption)}" ${type === 'hero' ? 'fetchpriority="high"' : ''} referrerpolicy="no-referrer" width="1600" height="900"><figcaption>${photoCaption(photo)}</figcaption></figure>` : '';
 
 const chips = (list, inlineMode) =>
