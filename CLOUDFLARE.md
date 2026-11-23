@@ -22,6 +22,8 @@
 
 入力フィールド `mode=daily` と `editorial_handoff` を含むJSONを標準入力から `gh workflow run cloudflare-publish.yml --repo clipcore-dev/tesla-fsd-news --ref main --json` に渡します。ワークフロー入力には公開可能な本文と出典だけを入れます。原稿が未着・照合できない場合は起動しません。
 
+話題に合う写真が見つかった場合、記事JSONに `"photo":{"file":"File:Example.jpg","caption":"何を撮影した参考写真か"}` を追加します。公開処理はWikimedia Commonsで作者とライセンス（CC BY 4.0、CC BY-SA 4.0、CC0）を照合します。条件に合わない写真や日次記事で既出の写真は掲載せず、本文は公開できます。
+
 
 ## 検証と復旧
 

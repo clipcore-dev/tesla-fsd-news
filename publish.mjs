@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { resolveCover } from './cover.mjs';
 
 const env = process.env;
 const postsDir = '.publish/posts';
@@ -29,7 +30,7 @@ const isSource = (link) => {
   }
 };
 
-function issue() {
+async function issue(posts) {
   const handoff = env.EDITORIAL_HANDOFF?.trim();
   if (!handoff) throw new Error('朝6時のChatGPT記事が届いていません。');
   const article = JSON.parse(handoff);
@@ -48,8 +49,9 @@ function issue() {
       throw new Error('記事の本文または出典の形式が正しくありません。');
     }
   }
+  const photo = await resolveCover(article.photo, posts.map((post) => post.photo)).catch(() => null);
   return {
-    date, edition: '朝刊', title: article.title, description: article.summary, lead: [article.summary],
+    date, edition: '朝刊', title: article.title, description: article.summary, lead: [article.summary], photo,
     blocks: article.sections.flatMap((section) => [
       { type: 'h2', text: section.title },
       { type: 'meta', text: `【${section.kind}】` },
@@ -119,7 +121,7 @@ async function prepare() {
     }
   }
   posts.sort((first, second) => first.date.localeCompare(second.date));
-  if (daily) posts.push(issue());
+  if (daily) posts.push(await issue(posts));
   await fs.mkdir(postsDir, { recursive: true });
   for (const post of posts) await fs.writeFile(path.join(postsDir, `${post.date}.json`), JSON.stringify(post), { flag: 'wx' });
   const build = spawnSync(process.execPath, ['build.mjs', '--allow-empty'], {

@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { publicCover } from './cover.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const args = new Set(process.argv.slice(2));
@@ -132,9 +133,15 @@ const PHOTOS = {
   model3: { file: 'model3.jpg', caption: 'Model 3（2018年撮影・海外参考写真。日本仕様やHWを示すものではありません）', author: 'Darin Caggiano', source: 'https://commons.wikimedia.org/wiki/File:Tesla_Model_3.jpg', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
   modely: { file: 'modely.jpg', caption: 'Model Y（2022年・英国撮影。日本仕様やHWを示すものではありません）', author: 'Vauxford', source: 'https://commons.wikimedia.org/wiki/File:2022_Tesla_Model_Y_Long_Range_AWD_Front.jpg', license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' },
 };
-const photoOf = (post) => PHOTOS[post.photo] || (Number(post.date.slice(8)) % 2 === 0 ? PHOTOS.model3 : PHOTOS.modely);
+const photoOf = (post) => {
+  if (typeof post.photo === 'object') return publicCover(post.photo);
+  return PHOTOS[post.photo] || (Number(post.date.slice(8)) % 2 === 0 ? PHOTOS.model3 : PHOTOS.modely);
+};
+const photoSrc = (photo) => photo.image || url(`/photos/${photo.file}`);
+const absolutePhoto = (photo) => photo?.image || (photo ? abs(`/photos/${photo.file}`) : null);
 const photoCaption = (ph) => `${esc(ph.caption)}<br><a href="${ph.source}" target="_blank" rel="noopener">${esc(ph.author)} / Wikimedia Commons</a> · <a href="${ph.licenseUrl}" target="_blank" rel="noopener">${ph.license}</a> · 縮小版。表示枠に合わせたトリミングあり。`;
 const photoCredit = (ph) => `<p class="card-credit"><a href="${ph.source}" target="_blank" rel="noopener">写真：${esc(ph.author)}</a> / <a href="${ph.licenseUrl}" target="_blank" rel="noopener">${ph.license}</a>（縮小・表示枠でトリミング）</p>`;
+const photoFigure = (photo, type) => photo ? `<figure class="${type}-photo"><img src="${esc(photoSrc(photo))}" alt="${esc(photo.caption)}" ${type === 'hero' ? 'fetchpriority="high"' : ''} referrerpolicy="no-referrer" width="1600" height="900"><figcaption>${photoCaption(photo)}</figcaption></figure>` : '';
 
 const chips = (list, inlineMode) =>
   !list?.length ? '' :
@@ -200,8 +207,8 @@ function layout({ title, description, pathName, body, type = 'website', jsonld, 
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${esc(abs(pathName))}">
-<meta property="og:image" content="${esc(abs(image || '/photos/model3.jpg'))}">
-<meta name="twitter:card" content="summary_large_image">
+${image ? `<meta property="og:image" content="${esc(image)}">` : ''}
+<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">
 <meta name="theme-color" content="#f7f6f2">
 <link rel="alternate" type="application/rss+xml" title="${esc(cfg.title)}" href="${url('/feed.xml')}">
 <link rel="icon" href="${url('/favicon.svg')}" type="image/svg+xml">
@@ -252,7 +259,7 @@ function postPage(post, prev, next) {
 <h1>${inline(post.title)}</h1>
 <p class="standfirst">${esc(post.description)}</p>
 <p class="article-meta">${jpDate(post.date)}${post.edition ? esc(post.edition) : ''}${post.updated ? `｜日本時間${esc(post.updated)}更新` : ''}｜AIを活用して作成。出典は記事の末尾に掲載しています。</p>
-<figure class="article-photo"><img src="${url(`/photos/${ph.file}`)}" alt="${esc(ph.caption)}" width="1600" height="900"><figcaption>${photoCaption(ph)}</figcaption></figure>
+${photoFigure(ph, 'article')}
 ${post.lead.map((t) => `<p>${inline(t)}</p>`).join('\n')}
 ${firstTiles < 0 ? adUnit('top') : ''}
 ${out.join('\n')}
@@ -266,23 +273,24 @@ ${next ? `<a class="next" href="${url(`/posts/${next.date}/`)}"><small>次の記
 </nav>
 </article>`;
   return layout({
-    title: plain(post.title), description: post.description, pathName: p, body, type: 'article', image: `/photos/${ph.file}`,
+    title: plain(post.title), description: post.description, pathName: p, body, type: 'article', image: absolutePhoto(ph),
     jsonld: {
       '@context': 'https://schema.org', '@type': 'NewsArticle', headline: plain(post.title).slice(0, 110),
       description: post.description, datePublished: `${post.date}T${(post.updated || '09:00').padStart(5, '0')}:00+09:00`,
       dateModified: `${post.date}T${(post.updated || '09:00').padStart(5, '0')}:00+09:00`,
       author: { '@type': 'Organization', name: cfg.author }, publisher: { '@type': 'Organization', name: cfg.title },
-      image: abs(`/photos/${ph.file}`), mainEntityOfPage: abs(p), inLanguage: 'ja',
+      ...(ph ? { image: absolutePhoto(ph) } : {}), mainEntityOfPage: abs(p), inLanguage: 'ja',
     },
   });
 }
 
-const card = (p, wide) => {
-  const ph = photoOf(p);
-  const href = url(`/posts/${p.date}/`);
-  const tags = Array.isArray(p.tags) && p.tags.length ? p.tags : ['FSD', 'HW3', 'HW4'];
-  if (wide === true) return `<article class="card wide"><a href="${href}" tabindex="-1" aria-hidden="true"><img src="${url(`/photos/${ph.file}`)}" alt="" loading="lazy" width="640" height="400"></a><div class="card-body"><div class="eyebrow">${esc(p.edition || '朝刊')}<span>${p.date}</span></div><h3><a href="${href}">${esc(plain(p.title))}</a></h3><p>${esc(p.description)}</p><div class="tags">${tags.slice(0, 4).map((t) => `<span>${esc(t)}</span>`).join('')}</div>${photoCredit(ph)}</div></article>`;
-  return `<article class="card"><a href="${href}" tabindex="-1" aria-hidden="true"><img src="${url(`/photos/${ph.file}`)}" alt="" loading="lazy" width="640" height="400"></a>${photoCredit(ph)}<div class="card-body"><div class="eyebrow">${esc(p.edition || '朝刊')}<span>${p.date}</span></div><h3><a href="${href}">${esc(plain(p.title))}</a></h3><p>${esc(p.description)}</p><div class="tags">${tags.slice(0, 4).map((t) => `<span>${esc(t)}</span>`).join('')}</div></div></article>`;
+const card = (post, wide) => {
+  const photo = photoOf(post);
+  const href = url(`/posts/${post.date}/`);
+  const tags = Array.isArray(post.tags) && post.tags.length ? post.tags : ['FSD', 'HW3', 'HW4'];
+  const thumbnail = photo ? `<a href="${href}" tabindex="-1" aria-hidden="true"><img src="${esc(photoSrc(photo))}" alt="" loading="lazy" referrerpolicy="no-referrer" width="640" height="400"></a>` : '';
+  const credit = photo ? photoCredit(photo) : '';
+  return `<article class="card${wide && photo ? ' wide' : ''}">${thumbnail}${wide ? '' : credit}<div class="card-body"><div class="eyebrow">${esc(post.edition || '朝刊')}<span>${post.date}</span></div><h3><a href="${href}">${esc(plain(post.title))}</a></h3><p>${esc(post.description)}</p><div class="tags">${tags.slice(0, 4).map((tag) => `<span>${esc(tag)}</span>`).join('')}</div>${wide ? credit : ''}</div></article>`;
 };
 
 function indexPage(posts) {
@@ -291,11 +299,11 @@ function indexPage(posts) {
       body: `<section class="reading page-plain"><h1>Tesla FSD・世界ニュース</h1><p>日本と世界のFSD、運転支援の認証、HW3・HW4の動向を出典付きでお届けします。初回の記事は検証が済み次第掲載します。</p>${hasImportedArchive ? `<p><a class="button" href="${url('/archive/')}">過去の記事を読む</a></p>` : ''}</section>` });
   }
   const latest = posts[0];
-  const ph = PHOTOS.model3;
+  const ph = photoOf(latest);
   const tiles = latest.blocks.find((b) => b.type === 'tiles');
   const world = latest.blocks.find((b) => b.type === 'table' && b.head[0] === '地域' && b.head.length === 3);
   const deltaClass = (d) => (/進展|前進|解禁|開始|承認/.test(d) ? 'up' : /悪化|後退|遅延|停止|却下/.test(d) ? 'down' : '');
-  const body = `<section class="hero"><div class="hero-copy"><div class="eyebrow">FOR JAPAN'S TESLA OWNERS</div><h1>Tesla FSD・<br>世界の<br><em>最新ニュース</em></h1><p>各国の認証、HW3・HW4、日本での提供見通し。<br>出典と確認日を添えて、毎朝まとめます。</p><a class="button" href="${url(`/posts/${latest.date}/`)}">今日の記事を読む <span>↗</span></a><div class="hero-meta">独立系ニュース / 出典付き / 毎朝更新</div></div><figure class="hero-photo"><img src="${url(`/photos/${ph.file}`)}" alt="${esc(ph.caption)}" fetchpriority="high" width="1600" height="900"><figcaption>${photoCaption(ph)}</figcaption></figure></section>
+  const body = `<section class="hero${ph ? '' : ' hero-text'}"><div class="hero-copy"><div class="eyebrow">FOR JAPAN'S TESLA OWNERS</div><h1>Tesla FSD・<br>世界の<br><em>最新ニュース</em></h1><p>各国の認証、HW3・HW4、日本での提供見通し。<br>出典と確認日を添えて、毎朝まとめます。</p><a class="button" href="${url(`/posts/${latest.date}/`)}">今日の記事を読む <span>↗</span></a><div class="hero-meta">独立系ニュース / 出典付き / 毎朝更新</div></div>${photoFigure(ph, 'hero')}</section>
 <div class="status-strip"><span class="pulse"></span><strong>LATEST</strong><span>最終更新 ${jpDate(latest.date)}${latest.updated ? ` ${esc(latest.updated)}` : ''}</span><span class="status-count">${posts.length} 本の記事</span><a href="${url('/archive/')}">記事一覧を見る ↗</a></div>
 ${tiles ? `<section style="margin-bottom:0"><div class="brief">${tiles.items.slice(0, 4).map((t, i) => `<div><span class="kicker">${String(i + 1).padStart(2, '0')} / ${inline(t.label)}</span><h2${t.tone ? ` class="tone-${t.tone}"` : ''}>${inline(t.value)}</h2><p>${inline(t.note || '')}</p></div>`).join('')}</div><p class="brief-more"><a href="${url(`/posts/${latest.date}/`)}">${esc(plain(latest.title))} ↗</a></p></section>` : ''}
 ${adUnit('list')}
