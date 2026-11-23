@@ -1,9 +1,6 @@
 name: Tesla FSD Cloudflare Pages
 
 on:
-  schedule:
-    - cron: '0 6 * * *'
-      timezone: Asia/Tokyo
   workflow_dispatch:
     inputs:
       mode:
@@ -12,7 +9,7 @@ on:
         options: [daily, archive, bootstrap]
         default: daily
       editorial_handoff:
-        description: '朝6時タスクの候補JSON。空欄ならWebから調査'
+        description: '朝6時のChatGPTタスクで作成し、出典を確認した記事JSON'
         type: string
         required: false
 
@@ -25,7 +22,7 @@ concurrency:
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (vars.DAILY_PUBLISH_ENABLED == 'true' && vars.PUBLISH_HANDOFF_ONLY != 'true'))
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -33,7 +30,6 @@ jobs:
       PAGES_PROJECT: ${{ vars.PAGES_PROJECT }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       PUBLISH_MODE: ${{ inputs.mode || 'daily' }}
-      PUBLISH_HANDOFF_ONLY: ${{ vars.PUBLISH_HANDOFF_ONLY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,8 +40,6 @@ jobs:
         env:
           EDITORIAL_HANDOFF: ${{ inputs.editorial_handoff }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
       - id: deploy
         if: steps.prepare.outputs.deploy == 'true'
         uses: cloudflare/wrangler-action@v3
